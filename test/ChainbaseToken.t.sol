@@ -60,4 +60,18 @@ contract ChainbaseTokenTest is Test {
 
         assertEq(token.allowance(user, owner), 100 * 10 ** 18);
     }
+
+    function testMaxSupply() public {
+        uint256 maxSupply = token.cap();
+
+        uint256 initialMint = maxSupply - (100 * 10 ** 18);
+        token.mint(user, initialMint);
+        assertEq(token.totalSupply(), initialMint);
+
+        vm.expectRevert("ERC20Capped: cap exceeded");
+        token.mint(user, 200 * 10 ** 18);
+
+        token.mint(user, 50 * 10 ** 18);
+        assertEq(token.totalSupply(), initialMint + (50 * 10 ** 18));
+    }
 }
