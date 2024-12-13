@@ -74,6 +74,10 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
     //=========================================================================
     //                                EXTERNAL
     //=========================================================================
+    /**
+     * @notice Allows whitelisted operators to stake tokens
+     * @param amount The amount of tokens to stake
+     */
     function stake(uint256 amount) external onlyWhitelisted whenNotPaused nonReentrant {
         address operator = msg.sender;
 
@@ -86,6 +90,10 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         emit StakeDeposited(operator, amount);
     }
 
+    /**
+     * @notice Initiates the unstake process for an operator
+     * @dev Starts the unlock period before tokens can be withdrawn
+     */
     function unstake() external onlyWhitelisted whenNotPaused nonReentrant {
         address operator = msg.sender;
         uint256 amount = operatorStakes[operator];
@@ -100,6 +108,9 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         emit UnstakeRequested(operator, amount, unlockTime);
     }
 
+    /**
+     * @notice Allows operators to withdraw their unstaked tokens after the unlock period
+     */
     function withdrawStake() external onlyWhitelisted whenNotPaused nonReentrant {
         address operator = msg.sender;
         UnstakeRequest memory request = unstakeRequests[operator];
@@ -115,11 +126,17 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         emit StakeWithdrawn(operator, amount);
     }
 
+    /**
+     * @notice Allows users to delegate tokens to a whitelisted operator
+     * @param operator The address of the operator to delegate to
+     * @param amount The amount of tokens to delegate
+     */
     function delegate(address operator, uint256 amount) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
 
         require(amount > 0, "Staking: Amount must be greater than 0");
         require(operatorWhitelist[operator], "Staking: Operator not whitelisted");
+        require(operatorStakes[operator] >= minOperatorStake, "Staking: Insufficient operator stake amount");
 
         require(cToken.transferFrom(delegator, address(this), amount), "Staking: Transfer failed");
         delegations[delegator][operator] += amount;
@@ -127,6 +144,11 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         emit DelegationDeposited(delegator, operator, amount);
     }
 
+    /**
+     * @notice Allows delegators to withdraw their delegated tokens
+     * @param operator The operator address from which to withdraw delegation
+     * @param amount The amount of tokens to withdraw
+     */
     function withdrawDelegation(address operator, uint256 amount) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
 

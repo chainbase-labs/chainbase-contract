@@ -5,9 +5,10 @@ interface IStaking {
     //=========================================================================
     //                                STRUCTS
     //=========================================================================
+    // Structure to track unstake requests with amount and unlock time
     struct UnstakeRequest {
-        uint256 amount;
-        uint256 unlockTime;
+        uint256 amount; // Amount of tokens requested to unstake
+        uint256 unlockTime; // Timestamp when tokens can be withdrawn
     }
 
     //=========================================================================
