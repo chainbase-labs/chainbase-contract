@@ -18,5 +18,6 @@ abstract contract StakingStorage is IStaking {
     uint256 public minOperatorStake;
     mapping(address => bool) public operatorWhitelist;
     mapping(address => uint256) public operatorStakes;
+    mapping(address => UnstakeRequest) public unstakeRequests;
     mapping(address => mapping(address => uint256)) public delegations;
 }
