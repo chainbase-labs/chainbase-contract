@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.22;
 
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -8,6 +9,8 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "./StakingStorage.sol";
 
 contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, StakingStorage {
+    using SafeERC20 for IERC20;
+
     //=========================================================================
     //                                MODIFIERS
     //=========================================================================
@@ -84,7 +87,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         require(amount > 0, "Staking: Amount must be greater than 0");
         require(operatorStakes[operator] + amount >= minOperatorStake, "Staking: Insufficient stake amount");
 
-        require(cToken.transferFrom(operator, address(this), amount), "Staking: Transfer failed");
+        cToken.safeTransferFrom(operator, address(this), amount);
         operatorStakes[operator] += amount;
 
         emit StakeDeposited(operator, amount);
@@ -121,7 +124,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         uint256 amount = request.amount;
         delete unstakeRequests[operator];
 
-        require(cToken.transfer(operator, amount), "Staking: Transfer failed");
+        cToken.safeTransfer(operator, amount);
 
         emit StakeWithdrawn(operator, amount);
     }
@@ -138,7 +141,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         require(operatorWhitelist[operator], "Staking: Operator not whitelisted");
         require(operatorStakes[operator] >= minOperatorStake, "Staking: Insufficient operator stake amount");
 
-        require(cToken.transferFrom(delegator, address(this), amount), "Staking: Transfer failed");
+        cToken.safeTransferFrom(delegator, address(this), amount);
         delegations[delegator][operator] += amount;
 
         emit DelegationDeposited(delegator, operator, amount);
@@ -156,7 +159,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         require(delegations[delegator][operator] >= amount, "Staking: Insufficient delegation amount");
 
         delegations[delegator][operator] -= amount;
-        require(cToken.transfer(delegator, amount), "Staking: Transfer failed");
+        cToken.safeTransfer(delegator, amount);
 
         emit DelegationWithdrawn(delegator, operator, amount);
     }
