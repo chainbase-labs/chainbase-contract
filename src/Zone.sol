@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 contract Zone is ERC721URIStorage, Ownable {
+    //=========================================================================
+    //                                STRUCTS
+    //=========================================================================
     // Represents the current state of a manuscript submission
     enum ManuscriptStatus {
         None, // Initial state, manuscript doesn't exist
@@ -21,10 +24,12 @@ contract Zone is ERC721URIStorage, Ownable {
         ManuscriptStatus status; // Current status of the manuscript
     }
 
+    //=========================================================================
+    //                                STORAGE
+    //=========================================================================
     string public zoneMetadataURI; // Metadata URI for the entire Zone collection
     uint256 public nextTokenId; // Counter for the next token to be minted
     bool public transfersEnabled; // Flag to enable/disable NFT transfers
-
     // Maps manuscript hash to its details
     mapping(bytes32 => Manuscript) public manuscripts;
     // Maps token ID to its corresponding manuscript hash
@@ -32,12 +37,18 @@ contract Zone is ERC721URIStorage, Ownable {
     // Maps manuscript hash to its minted token ID (if approved)
     mapping(bytes32 => uint256) public manuscriptHashToTokenId;
 
+    //=========================================================================
+    //                                 EVENT
+    //=========================================================================
     event ManuscriptSubmitted(bytes32 indexed manuscriptHash, address indexed developer, string metadataURI);
     event ManuscriptApproved(bytes32 indexed manuscriptHash, uint256 indexed tokenId);
     event ManuscriptRejected(bytes32 indexed manuscriptHash);
     event ZoneMetadataUpdated(string metadataURI);
     event TransfersEnabled(bool enabled);
 
+    //=========================================================================
+    //                                CONSTRUCTOR
+    //=========================================================================
     constructor(string memory zoneName, string memory zoneSymbol, string memory _zoneMetadataURI)
         ERC721(zoneName, zoneSymbol)
     {
@@ -48,6 +59,9 @@ contract Zone is ERC721URIStorage, Ownable {
         emit ZoneMetadataUpdated(_zoneMetadataURI);
     }
 
+    //=========================================================================
+    //                                EXTERNAL
+    //=========================================================================
     function setZoneMetadata(string memory _zoneMetadataURI) external onlyOwner {
         zoneMetadataURI = _zoneMetadataURI;
         emit ZoneMetadataUpdated(_zoneMetadataURI);
@@ -144,6 +158,9 @@ contract Zone is ERC721URIStorage, Ownable {
         return statuses;
     }
 
+    //=========================================================================
+    //                                INTERNAL
+    //=========================================================================
     /**
      * @notice Override of ERC721 transfer function to implement transfer restrictions
      * @dev Ensures transfers are only possible when transfersEnabled is true
