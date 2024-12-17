@@ -103,18 +103,13 @@ contract RewardsDistributor is
     //=========================================================================
     /// @notice Submits a new merkle root for rewards distribution
     /// @param root Merkle root of the distribution
-    /// @param endTime Timestamp when the distribution expires
     /// @param totalAmount Total amount of tokens to be distributed
-    function submitRoot(bytes32 root, uint32 endTime, uint256 totalAmount) external onlyRewardsUpdater whenNotPaused {
-        require(endTime > block.timestamp, "RewardsDistributor: Invalid end time");
-
+    function submitRoot(bytes32 root, uint256 totalAmount) external onlyRewardsUpdater whenNotPaused {
         uint32 activateTime = uint32(block.timestamp) + activationDelay;
 
         require(cToken.transferFrom(msg.sender, address(this), totalAmount), "RewardsDistributor: Transfer failed");
 
-        _distributionRoots.push(
-            DistributionRoot({root: root, activatedAt: activateTime, rewardsEndTime: endTime, disabled: false})
-        );
+        _distributionRoots.push(DistributionRoot({root: root, activatedAt: activateTime, disabled: false}));
 
         emit RootSubmitted(_distributionRoots.length - 1, root, totalAmount);
     }
@@ -151,7 +146,6 @@ contract RewardsDistributor is
 
         require(!root.disabled, "RewardsDistributor: Root already disabled");
         require(block.timestamp >= root.activatedAt, "RewardsDistributor: Not activated");
-        require(block.timestamp <= root.rewardsEndTime, "RewardsDistributor: Rewards expired");
 
         // Verify merkle proof - validates user address and amount
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender, amount));
