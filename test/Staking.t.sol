@@ -27,6 +27,7 @@ contract StakingTest is Test {
     event StakeWithdrawn(address indexed operator, uint256 amount);
     event DelegationDeposited(address indexed delegator, address indexed operator, uint256 amount);
     event DelegationWithdrawn(address indexed delegator, address indexed operator, uint256 amount);
+    event UndelegateRequested(address indexed delegator, address indexed operator, uint256 amount, uint256 unlockTime);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -220,11 +221,11 @@ contract StakingTest is Test {
         assertEq(staking.delegations(delegator, operator), delegateAmount);
     }
 
-    // Test withdrawDelegation
-    function test_WithdrawDelegation() public {
+    // Test undelegate
+    function test_Undelegate() public {
         uint256 delegateAmount = 1000 * 10 ** 18;
 
-        // First delegate some tokens
+        // Setup: add operator to whitelist, stake and delegate
         address[] memory operators = new address[](1);
         operators[0] = operator;
         vm.prank(owner);
@@ -242,13 +243,58 @@ contract StakingTest is Test {
         vm.prank(delegator);
         staking.delegate(operator, delegateAmount);
 
+        // Execute undelegate
+        vm.prank(delegator);
+        vm.expectEmit(true, true, true, true);
+        emit UndelegateRequested(delegator, operator, delegateAmount, block.timestamp + 7 days);
+        staking.undelegate(operator, delegateAmount);
+
+        // Verify state changes
+        assertEq(staking.delegations(delegator, operator), 0);
+        (uint256 amount, uint256 unlockTime) = staking.undelegateRequests(delegator, operator);
+        assertEq(amount, delegateAmount);
+        assertEq(unlockTime, block.timestamp + 7 days);
+    }
+
+    // Test withdrawDelegation
+    function test_WithdrawDelegation() public {
+        uint256 delegateAmount = 1000 * 10 ** 18;
+
+        // Setup initial conditions
+        address[] memory operators = new address[](1);
+        operators[0] = operator;
+        vm.prank(owner);
+        staking.addWhitelist(operators);
+
+        vm.prank(operator);
+        cToken.approve(address(staking), MIN_STAKE);
+
+        vm.prank(operator);
+        staking.stake(MIN_STAKE);
+
+        vm.prank(delegator);
+        cToken.approve(address(staking), delegateAmount);
+
+        vm.prank(delegator);
+        staking.delegate(operator, delegateAmount);
+
+        // Execute undelegate
+        vm.prank(delegator);
+        staking.undelegate(operator, delegateAmount);
+
+        // Wait for unlock period
+        vm.warp(block.timestamp + 7 days);
+
         // Withdraw delegation
         vm.prank(delegator);
         vm.expectEmit(true, true, true, true);
         emit DelegationWithdrawn(delegator, operator, delegateAmount);
-        staking.withdrawDelegation(operator, delegateAmount);
+        staking.withdrawDelegation(operator);
 
-        assertEq(staking.delegations(delegator, operator), 0);
+        // Verify final state
+        (uint256 amount, uint256 unlockTime) = staking.undelegateRequests(delegator, operator);
+        assertEq(amount, 0);
+        assertEq(unlockTime, 0);
         assertEq(cToken.balanceOf(delegator), INITIAL_BALANCE);
     }
 
@@ -281,7 +327,7 @@ contract StakingTest is Test {
 
         vm.prank(delegator);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        staking.withdrawDelegation(operator, MIN_STAKE);
+        staking.withdrawDelegation(operator);
 
         vm.prank(owner);
         staking.unpause();

@@ -11,6 +11,12 @@ interface IStaking {
         uint256 unlockTime; // Timestamp when tokens can be withdrawn
     }
 
+    // Structure to track undelegate requests with amount and unlock time
+    struct UndelegateRequest {
+        uint256 amount;
+        uint256 unlockTime;
+    }
+
     //=========================================================================
     //                                 EVENT
     //=========================================================================
@@ -21,15 +27,18 @@ interface IStaking {
     event UnstakeRequested(address indexed operator, uint256 amount, uint256 unlockTime);
     event StakeWithdrawn(address indexed operator, uint256 amount);
     event DelegationDeposited(address indexed delegator, address indexed operator, uint256 amount);
+    event UndelegateRequested(address indexed delegator, address indexed operator, uint256 amount, uint256 unlockTime);
     event DelegationWithdrawn(address indexed delegator, address indexed operator, uint256 amount);
 
     //=========================================================================
     //                                FUNCTIONS
     //=========================================================================
-    function addWhitelist(address[] calldata _operators) external;
-    function removeWhitelist(address[] calldata _operators) external;
-    function stake(uint256 _amount) external;
+    function addWhitelist(address[] calldata operators) external;
+    function removeWhitelist(address[] calldata operators) external;
+    function stake(uint256 amount) external;
+    function unstake() external;
     function withdrawStake() external;
-    function delegate(address _operator, uint256 _amount) external;
-    function withdrawDelegation(address operator, uint256 amount) external;
+    function delegate(address operator, uint256 amount) external;
+    function undelegate(address operator, uint256 amount) external;
+    function withdrawDelegation(address operator) external;
 }

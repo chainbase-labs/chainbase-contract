@@ -15,7 +15,7 @@ interface IRewardsDistributor {
     //                                 EVENT
     //=========================================================================
 
-    event RootSubmitted(uint256 indexed index, bytes32 root, uint256 totalAmount);
+    event RootSubmitted(uint256 indexed index, bytes32 root, uint256 amount);
     event RootDisabled(uint256 indexed index);
     event RewardsClaimed(address indexed user, uint256 amount);
     event RewardsUpdaterUpdated(address oldUpdater, address newUpdater);

@@ -101,7 +101,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         address operator = msg.sender;
         uint256 amount = operatorStakes[operator];
 
-        require(amount > 0, "Staking: No stake to withdraw");
+        require(amount > 0, "Staking: No staking to unstake");
         require(unstakeRequests[operator].amount == 0, "Staking: Existing unstake request");
 
         delete operatorStakes[operator];
@@ -148,17 +148,39 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
     }
 
     /**
-     * @notice Allows delegators to withdraw their delegated tokens
-     * @param operator The operator address from which to withdraw delegation
-     * @param amount The amount of tokens to withdraw
+     * @notice Allows delegators to initiate the undelegate process
+     * @param operator The address of the operator to undelegate from
+     * @param amount The amount of tokens to undelegate
      */
-    function withdrawDelegation(address operator, uint256 amount) external whenNotPaused nonReentrant {
+    function undelegate(address operator, uint256 amount) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
 
         require(amount > 0, "Staking: Amount must be greater than 0");
         require(delegations[delegator][operator] >= amount, "Staking: Insufficient delegation amount");
+        require(undelegateRequests[delegator][operator].amount == 0, "Staking: Existing undelegate request");
 
         delegations[delegator][operator] -= amount;
+        uint256 unlockTime = block.timestamp + UNLOCK_PERIOD;
+        undelegateRequests[delegator][operator] = UndelegateRequest({amount: amount, unlockTime: unlockTime});
+
+        emit UndelegateRequested(delegator, operator, amount, unlockTime);
+    }
+
+    /**
+     * @notice Allows delegators to withdraw their undelegated tokens after the unlock period
+     * @dev Transfers tokens back to the delegator after the unlock period has passed
+     * @param operator The address of the operator from which tokens were undelegated
+     */
+    function withdrawDelegation(address operator) external whenNotPaused nonReentrant {
+        address delegator = msg.sender;
+        UndelegateRequest memory request = undelegateRequests[delegator][operator];
+
+        require(request.amount > 0, "Staking: No pending undelegate request");
+        require(block.timestamp >= request.unlockTime, "Staking: Tokens still locked");
+
+        uint256 amount = request.amount;
+        delete undelegateRequests[delegator][operator];
+
         cToken.safeTransfer(delegator, amount);
 
         emit DelegationWithdrawn(delegator, operator, amount);

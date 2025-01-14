@@ -27,4 +27,6 @@ abstract contract StakingStorage is IStaking {
     mapping(address => UnstakeRequest) public unstakeRequests;
     // Nested mapping tracking delegations: delegator => operator => amount
     mapping(address => mapping(address => uint256)) public delegations;
+    // Nested mapping tracking Undelegate request: delegator => operator => amount
+    mapping(address => mapping(address => UndelegateRequest)) public undelegateRequests;
 }

@@ -103,15 +103,15 @@ contract RewardsDistributor is
     //=========================================================================
     /// @notice Submits a new merkle root for rewards distribution
     /// @param root Merkle root of the distribution
-    /// @param totalAmount Total amount of tokens to be distributed
-    function submitRoot(bytes32 root, uint256 totalAmount) external onlyRewardsUpdater whenNotPaused {
+    /// @param amount Total amount of tokens to be distributed
+    function submitRoot(bytes32 root, uint256 amount) external onlyRewardsUpdater whenNotPaused {
         uint32 activateTime = uint32(block.timestamp) + activationDelay;
 
-        require(cToken.transferFrom(msg.sender, address(this), totalAmount), "RewardsDistributor: Transfer failed");
+        require(cToken.transferFrom(msg.sender, address(this), amount), "RewardsDistributor: Transfer failed");
 
         _distributionRoots.push(DistributionRoot({root: root, activatedAt: activateTime, disabled: false}));
 
-        emit RootSubmitted(_distributionRoots.length - 1, root, totalAmount);
+        emit RootSubmitted(_distributionRoots.length - 1, root, amount);
     }
 
     /// @notice Disables a distribution root
