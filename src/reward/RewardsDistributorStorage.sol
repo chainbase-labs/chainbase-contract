@@ -23,6 +23,6 @@ contract RewardsDistributorStorage is IRewardsDistributor {
     // Array of all distribution roots
     DistributionRoot[] internal _distributionRoots;
 
-    // Mapping of address to total claimed rewards
-    mapping(address => uint256) public rewardClaimed;
+    // Mapping of address and role to total claimed rewards
+    mapping(address => mapping(Role => uint256)) public rewardClaimed;
 }

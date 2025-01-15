@@ -8,6 +8,7 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 
 import {ChainbaseToken} from "../src/ChainbaseToken.sol";
 import {RewardsDistributor} from "../src/reward/RewardsDistributor.sol";
+import {IRewardsDistributor} from "../src/reward/IRewardsDistributor.sol";
 
 contract RewardsDistributorTest is Test {
     RewardsDistributor public distributor;
@@ -28,6 +29,10 @@ contract RewardsDistributorTest is Test {
     bytes32[][] public proofs;
     uint256 public user1Amount = 600e18;
     uint256 public user2Amount = 400e18;
+
+    IRewardsDistributor.Role public constant ROLE_DEVELOPER = IRewardsDistributor.Role.DEVELOPER;
+    IRewardsDistributor.Role public constant ROLE_OPERATOR = IRewardsDistributor.Role.OPERATOR;
+    IRewardsDistributor.Role public constant ROLE_DELEGATOR = IRewardsDistributor.Role.DELEGATOR;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -51,8 +56,8 @@ contract RewardsDistributorTest is Test {
         distributor = RewardsDistributor(address(distributorProxy));
 
         leaves = new bytes32[](2);
-        leaves[0] = keccak256(abi.encodePacked(user1, user1Amount)); // user1's leaf
-        leaves[1] = keccak256(abi.encodePacked(user2, user2Amount)); // user2's leaf
+        leaves[0] = keccak256(abi.encodePacked(user1, ROLE_OPERATOR, user1Amount)); // user1's leaf as developer
+        leaves[1] = keccak256(abi.encodePacked(user2, ROLE_DEVELOPER, user2Amount)); // user2's leaf as operator
 
         // calculate merkle root
         merkleRoot = keccak256(abi.encodePacked(leaves[0], leaves[1]));
@@ -143,15 +148,64 @@ contract RewardsDistributorTest is Test {
 
         vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
 
-        // User1 claims
+        // User1 claims as developer
         vm.prank(user1);
-        distributor.claimRewards(0, user1Amount, proofs[0]);
+        distributor.claimRewards(0, ROLE_OPERATOR, user1Amount, proofs[0]);
         assertEq(cToken.balanceOf(user1), user1Amount);
 
-        // User2 claims
+        // User2 claims as operator
         vm.prank(user2);
-        distributor.claimRewards(0, user2Amount, proofs[1]);
+        distributor.claimRewards(0, ROLE_DEVELOPER, user2Amount, proofs[1]);
         assertEq(cToken.balanceOf(user2), user2Amount);
+    }
+
+    function test_ClaimRewardsMultipleRoles() public {
+        // create a new merkle tree
+        bytes32[] memory multiRoleLeaves = new bytes32[](2);
+        uint256 amount1 = 300e18;
+        uint256 amount2 = 200e18;
+        multiRoleLeaves[0] = keccak256(abi.encodePacked(user1, ROLE_DEVELOPER, amount1));
+        multiRoleLeaves[1] = keccak256(abi.encodePacked(user1, ROLE_DELEGATOR, amount2));
+
+        bytes32[][] memory multiRoleProofs = new bytes32[][](2);
+        multiRoleProofs[0] = new bytes32[](1);
+        multiRoleProofs[1] = new bytes32[](1);
+        multiRoleProofs[0][0] = multiRoleLeaves[1];
+        multiRoleProofs[1][0] = multiRoleLeaves[0];
+
+        if (uint256(multiRoleLeaves[0]) > uint256(multiRoleLeaves[1])) {
+            (multiRoleLeaves[0], multiRoleLeaves[1]) = (multiRoleLeaves[1], multiRoleLeaves[0]);
+        }
+
+        bytes32 multiRoleMerkleRoot = keccak256(abi.encodePacked(multiRoleLeaves[0], multiRoleLeaves[1]));
+
+        // submit the new merkle root
+        vm.prank(rewardsUpdater);
+        distributor.submitRoot(multiRoleMerkleRoot, 500e18);
+
+        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
+
+        // User1 claims as developer
+        vm.prank(user1);
+        distributor.claimRewards(0, ROLE_DEVELOPER, 300e18, multiRoleProofs[0]);
+        assertEq(cToken.balanceOf(user1), 300e18);
+
+        // User1 claims as operator
+        vm.prank(user1);
+        distributor.claimRewards(0, ROLE_DELEGATOR, 200e18, multiRoleProofs[1]);
+        assertEq(cToken.balanceOf(user1), 500e18);
+    }
+
+    function testFail_ClaimRewardsWithWrongRole() public {
+        vm.prank(rewardsUpdater);
+        distributor.submitRoot(merkleRoot, totalAmount);
+
+        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
+
+        // User1 tries to claim with wrong role
+        vm.prank(user1);
+        // Should fail as user1 is registered as OPERATOR
+        distributor.claimRewards(0, ROLE_DEVELOPER, user1Amount, proofs[0]);
     }
 
     function testFail_ClaimRewardsWithWrongProof() public {
@@ -162,7 +216,7 @@ contract RewardsDistributorTest is Test {
 
         // User1 try use user2's proof
         vm.prank(user1);
-        distributor.claimRewards(0, user1Amount, proofs[1]);
+        distributor.claimRewards(0, ROLE_OPERATOR, user1Amount, proofs[1]);
     }
 
     function testFail_ClaimRewardsWithWrongAmount() public {
@@ -173,7 +227,7 @@ contract RewardsDistributorTest is Test {
 
         // User1 try use wrong amount
         vm.prank(user1);
-        distributor.claimRewards(0, user2Amount, proofs[0]);
+        distributor.claimRewards(0, ROLE_DEVELOPER, user2Amount, proofs[0]);
     }
 
     function test_GetDistributionRoot() public {

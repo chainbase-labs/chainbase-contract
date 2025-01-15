@@ -116,7 +116,7 @@ contract RewardsDistributor is
 
     /// @notice Disables a distribution root
     /// @param rootIndex Index of the distribution root
-    function disableRoot(uint32 rootIndex) external onlyRewardsUpdater whenNotPaused {
+    function disableRoot(uint256 rootIndex) external onlyRewardsUpdater whenNotPaused {
         require(rootIndex < _distributionRoots.length, "RewardsDistributor: invalid rootIndex");
 
         DistributionRoot storage root = _distributionRoots[rootIndex];
@@ -134,9 +134,10 @@ contract RewardsDistributor is
     //=========================================================================
     /// @notice Claims rewards for the caller
     /// @param rootIndex Index of the distribution root
+    /// @param role Role of the claimer (developer, operator, or delegator)
     /// @param amount Total cumulative amount of rewards claimable by the user
     /// @param proof Merkle proof to verify the claim
-    function claimRewards(uint256 rootIndex, uint256 amount, bytes32[] calldata proof)
+    function claimRewards(uint256 rootIndex, Role role, uint256 amount, bytes32[] calldata proof)
         external
         nonReentrant
         whenNotPaused
@@ -147,14 +148,14 @@ contract RewardsDistributor is
         require(!root.disabled, "RewardsDistributor: Root already disabled");
         require(block.timestamp >= root.activatedAt, "RewardsDistributor: Not activated");
 
-        // Verify merkle proof - validates user address and amount
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, amount));
+        // Verify merkle proof - validates user address, role and amount
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, role, amount));
         require(MerkleProof.verify(proof, root.root, leaf), "RewardsDistributor: Invalid proof");
 
-        // Update claim record
-        uint256 claimable = amount - rewardClaimed[msg.sender];
+        // Update claim record for specific role
+        uint256 claimable = amount - rewardClaimed[msg.sender][role];
         require(claimable > 0, "RewardsDistributor: No rewards to claim");
-        rewardClaimed[msg.sender] = amount;
+        rewardClaimed[msg.sender][role] = amount;
 
         // Safe transfer rewards
         cToken.safeTransfer(msg.sender, claimable);
