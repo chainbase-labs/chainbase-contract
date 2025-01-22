@@ -14,7 +14,6 @@ contract Zone is ERC721URIStorage, Ownable {
         Pending, // Manuscript submitted but not reviewed
         Approved, // Manuscript approved and NFT minted
         Rejected // Manuscript rejected by zone owner
-
     }
 
     // Stores all relevant information for a manuscript submission

@@ -10,8 +10,14 @@ contract DeployZone is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        Zone zone = new Zone("TestZone", "TZ", "");
-        console.log("Zone deployed to:", address(zone));
+        Zone zone1 = new Zone("StableCoin", "SC", "https://images.chainbase.online/zones/Stablecoin.json");
+        console.log("Zone deployed to:", address(zone1));
+
+        Zone zone2 = new Zone("Balance", "B", "https://images.chainbase.online/zones/Balance.json");
+        console.log("Zone deployed to:", address(zone2));
+
+        Zone zone3 = new Zone("Transfer", "T", "https://images.chainbase.online/zones/Transfer.json");
+        console.log("Zone deployed to:", address(zone3));
 
         vm.stopBroadcast();
     }

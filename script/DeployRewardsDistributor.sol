@@ -15,7 +15,8 @@ contract DeployRewardsDistributor is Script {
 
         // address cTokenAddress = address(0x21b09d2a0baC5B55AfCE96A7d0f3711e59711Feb); // mainnet
         // address cTokenAddress = address(0x911bb6Fee00AE3ca3943Ea8AE7f571151BC78f67); // holesky
-        address cTokenAddress = address(0xe30a02dF61b661140938b8e0B910CD81b466A46b); // chainbase testnet
+        // address cTokenAddress = address(0xe30a02dF61b661140938b8e0B910CD81b466A46b); // chainbase testnet
+        address cTokenAddress = address(0xF494b1883F029D8172d192D8074e5e82F1F9dAe7); //  base_sepolia
         address rewardsDistributorImplementation = address(new RewardsDistributor(cTokenAddress));
 
         ProxyAdmin rewardsDistributorProxyAdmin = new ProxyAdmin();
@@ -29,7 +30,7 @@ contract DeployRewardsDistributor is Script {
                 RewardsDistributor.initialize.selector,
                 vm.addr(deployerPrivateKey),
                 vm.addr(deployerPrivateKey),
-                1 weeks
+                1 seconds
             )
         );
 
