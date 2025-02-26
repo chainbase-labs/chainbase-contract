@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import "forge-std/Script.sol";
-import "../src/Zone.sol";
+import "../src/zone/Zone.sol";
 
 contract DeployZone is Script {
     //forge script script/DeployZone.sol:DeployZone --rpc-url $RPC_URL --broadcast --verify -vvvv

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
-import "../src/Zone.sol";
+import "../src/zone/Zone.sol";
 
 contract ZoneTest is Test {
     Zone public zone;
