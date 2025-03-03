@@ -196,9 +196,9 @@ contract ChainbaseAirdropTest is Test {
         require(index < _leaves.length, "Index out of bounds");
 
         uint256 numLevels = 0;
-        uint256 levelSize = _leaves.length;
-        while (levelSize > 1) {
-            levelSize = (levelSize + 1) / 2;
+        uint256 levelCount = _leaves.length;
+        while (levelCount > 1) {
+            levelCount = (levelCount + 1) / 2;
             numLevels++;
         }
 
