@@ -130,59 +130,54 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
     }
 
     /**
-     * @notice Allows users to delegate tokens to a whitelisted operator
-     * @param operator The address of the operator to delegate to
+     * @notice Allows users to delegate tokens
      * @param amount The amount of tokens to delegate
      */
-    function delegate(address operator, uint256 amount) external whenNotPaused nonReentrant {
+    function delegate(uint256 amount) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
 
         require(amount > 0, "Staking: Amount must be greater than 0");
-        require(operatorWhitelist[operator], "Staking: Operator not whitelisted");
-        require(operatorStakes[operator] >= minOperatorStake, "Staking: Insufficient operator stake amount");
 
         cToken.safeTransferFrom(delegator, address(this), amount);
-        delegations[delegator][operator] += amount;
+        delegations[delegator] += amount;
 
-        emit DelegationDeposited(delegator, operator, amount);
+        emit DelegationDeposited(delegator, amount);
     }
 
     /**
      * @notice Allows delegators to initiate the undelegate process
-     * @param operator The address of the operator to undelegate from
      * @param amount The amount of tokens to undelegate
      */
-    function undelegate(address operator, uint256 amount) external whenNotPaused nonReentrant {
+    function undelegate(uint256 amount) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
 
         require(amount > 0, "Staking: Amount must be greater than 0");
-        require(delegations[delegator][operator] >= amount, "Staking: Insufficient delegation amount");
-        require(undelegateRequests[delegator][operator].amount == 0, "Staking: Existing undelegate request");
+        require(delegations[delegator] >= amount, "Staking: Insufficient delegation amount");
+        require(undelegateRequests[delegator].amount == 0, "Staking: Existing undelegate request");
 
-        delegations[delegator][operator] -= amount;
+        delegations[delegator] -= amount;
         uint256 unlockTime = block.timestamp + UNLOCK_PERIOD;
-        undelegateRequests[delegator][operator] = UndelegateRequest({amount: amount, unlockTime: unlockTime});
+        undelegateRequests[delegator] = UndelegateRequest({amount: amount, unlockTime: unlockTime});
 
-        emit UndelegateRequested(delegator, operator, amount, unlockTime);
+        emit UndelegateRequested(delegator, amount, unlockTime);
     }
 
     /**
      * @notice Allows delegators to withdraw their undelegated tokens after the unlock period
      * @dev Transfers tokens back to the delegator after the unlock period has passed
-     * @param operator The address of the operator from which tokens were undelegated
      */
-    function withdrawDelegation(address operator) external whenNotPaused nonReentrant {
+    function withdrawDelegation() external whenNotPaused nonReentrant {
         address delegator = msg.sender;
-        UndelegateRequest memory request = undelegateRequests[delegator][operator];
+        UndelegateRequest memory request = undelegateRequests[delegator];
 
         require(request.amount > 0, "Staking: No pending undelegate request");
         require(block.timestamp >= request.unlockTime, "Staking: Tokens still locked");
 
         uint256 amount = request.amount;
-        delete undelegateRequests[delegator][operator];
+        delete undelegateRequests[delegator];
 
         cToken.safeTransfer(delegator, amount);
 
-        emit DelegationWithdrawn(delegator, operator, amount);
+        emit DelegationWithdrawn(delegator, amount);
     }
 }
