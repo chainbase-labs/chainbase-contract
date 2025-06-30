@@ -17,6 +17,8 @@ abstract contract StakingStorage is IStaking {
     //=========================================================================
     //                                STORAGE
     //=========================================================================
+    // The address of the airdrop contract
+    address public airdropContract;
     // Minimum amount of tokens required for an operator to stake
     uint256 public minOperatorStake;
     // Mapping to track whitelisted operators

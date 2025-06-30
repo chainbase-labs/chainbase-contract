@@ -31,17 +31,29 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
     //=========================================================================
     //                                INITIALIZE
     //=========================================================================
-    function initialize(address initialOwner) public initializer {
+    function initialize(
+        address initialOwner,
+        address _airdropContract
+    ) public initializer {
         require(initialOwner != address(0), "Staking: Invalid initial owner address");
+        require(_airdropContract != address(0), "Staking: Invalid airdrop contract address");
         __Ownable_init(initialOwner);
         __Pausable_init();
         __ReentrancyGuard_init();
+        airdropContract = _airdropContract;
         minOperatorStake = 500000 * 10 ** 18;
     }
 
     //=========================================================================
     //                                 MANAGE
     //=========================================================================
+    function setAirdropContract(address _airdropContract) external onlyOwner {
+        require(_airdropContract != address(0), "Staking: Invalid airdrop contract address");
+        address oldAirdropContract = airdropContract;
+        airdropContract = _airdropContract;
+        emit AirdropContractUpdated(oldAirdropContract, _airdropContract);
+    }
+
     function setMinOperatorStake(uint256 _minOperatorStake) external onlyOwner {
         require(_minOperatorStake > 0, "Staking: minimum operator stake amount must be greater than 0");
         uint256 oldAmount = minOperatorStake;
@@ -139,6 +151,20 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         require(amount > 0, "Staking: Amount must be greater than 0");
 
         cToken.safeTransferFrom(delegator, address(this), amount);
+        delegations[delegator] += amount;
+
+        emit DelegationDeposited(delegator, amount);
+    }
+
+    /**
+     * @notice Allows the airdrop contract to delegate tokens on behalf of a delegator
+     * @param delegator The address of the delegator
+     * @param amount The amount of tokens to delegate
+     */
+    function delegateFromAirdrop(address delegator, uint256 amount) external whenNotPaused nonReentrant {
+        require(msg.sender == airdropContract, "Staking: Only airdrop contract");
+        require(amount > 0, "Staking: Amount must be greater than 0");
+
         delegations[delegator] += amount;
 
         emit DelegationDeposited(delegator, amount);

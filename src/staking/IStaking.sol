@@ -20,6 +20,7 @@ interface IStaking {
     //=========================================================================
     //                                 EVENT
     //=========================================================================
+    event AirdropContractUpdated(address indexed oldAirdropContract, address indexed newAirdropContract);
     event MinOperatorStakeUpdated(uint256 oldAmount, uint256 newAmount);
     event WhitelistAdded(address indexed operator);
     event WhitelistRemoved(address indexed operator);
@@ -38,7 +39,8 @@ interface IStaking {
     function stake(uint256 amount) external;
     function unstake() external;
     function withdrawStake() external;
-    function delegate(address operator, uint256 amount) external;
-    function undelegate(address operator, uint256 amount) external;
-    function withdrawDelegation(address operator) external;
+    function delegate(uint256 amount) external;
+    function delegateFromAirdrop(address delegator, uint256 amount) external;
+    function undelegate(uint256 amount) external;
+    function withdrawDelegation() external;
 }

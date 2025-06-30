@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
+import "./staking/IStaking.sol";
+
 contract ChainbaseAirdrop is Ownable {
     using SafeERC20 for IERC20;
 
@@ -19,6 +21,7 @@ contract ChainbaseAirdrop is Ownable {
     //=========================================================================
     bool public isEnabled;
     bytes32 public merkleRoot;
+    IStaking public stakingContract;
     mapping(address => bool) public claimed;
 
     //=========================================================================
@@ -26,6 +29,7 @@ contract ChainbaseAirdrop is Ownable {
     //=========================================================================
     event AirdropStateUpdated(bool isEnabled);
     event MerkleRootUpdated(bytes32 oldRoot, bytes32 newRoot);
+    event StakingContractUpdated(address indexed oldStakingContract, address indexed newStakingContract);
     event AirdropClaimed(address indexed user, uint256 amount);
 
     //=========================================================================
@@ -50,6 +54,13 @@ contract ChainbaseAirdrop is Ownable {
         emit MerkleRootUpdated(oldRoot, _newMerkleRoot);
     }
 
+    function setStakingContract(address _newStakingContract) external onlyOwner {
+        require(_newStakingContract != address(0), "ChainbaseAirdrop: Invalid staking contract address");
+        address oldStakingContract = address(stakingContract);
+        stakingContract = IStaking(_newStakingContract);
+        emit StakingContractUpdated(oldStakingContract, _newStakingContract);
+    }
+
     function emergencyWithdraw() external onlyOwner {
         uint256 balance = cToken.balanceOf(address(this));
         cToken.safeTransfer(owner(), balance);
@@ -58,8 +69,9 @@ contract ChainbaseAirdrop is Ownable {
     //=========================================================================
     //                                EXTERNAL
     //=========================================================================
-    function claimAirdrop(uint256 amount, bytes32[] calldata merkleProof) external {
+    function claimAirdrop(uint256 amount, bytes32[] calldata merkleProof, bool stake) external {
         require(isEnabled, "ChainbaseAirdrop: Airdrop is not enabled");
+        require(address(stakingContract) != address(0), "ChainbaseAirdrop: Invalid staking contract address");
         require(!claimed[msg.sender], "ChainbaseAirdrop: Airdrop already claimed");
         require(cToken.balanceOf(address(this)) >= amount, "ChainbaseAirdrop: Insufficient balance");
 
@@ -67,7 +79,13 @@ contract ChainbaseAirdrop is Ownable {
         require(MerkleProof.verify(merkleProof, merkleRoot, leaf), "ChainbaseAirdrop: Invalid merkle proof");
 
         claimed[msg.sender] = true;
-        cToken.safeTransfer(msg.sender, amount);
+
+        if (stake) {
+            cToken.safeTransfer(address(stakingContract), amount);
+            stakingContract.delegateFromAirdrop(msg.sender, amount);
+        } else {
+            cToken.safeTransfer(msg.sender, amount);
+        }
 
         emit AirdropClaimed(msg.sender, amount);
     }
