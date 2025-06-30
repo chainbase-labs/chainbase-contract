@@ -2,12 +2,17 @@
 pragma solidity ^0.8.22;
 
 import {Test} from "forge-std/Test.sol";
+
+import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+
+import {IStaking, Staking} from "../src/staking/Staking.sol";
 import {ChainbaseToken} from "../src/ChainbaseToken.sol";
 import {ChainbaseAirdrop} from "../src/ChainbaseAirdrop.sol";
 
 contract ChainbaseAirdropTest is Test {
-    ChainbaseToken public token;
+    ChainbaseToken public cToken;
     ChainbaseAirdrop public airdrop;
+    Staking public staking;
 
     address public owner = makeAddr("owner");
     address public user1 = makeAddr("user1");
@@ -20,9 +25,11 @@ contract ChainbaseAirdropTest is Test {
     bytes32[] public leaves;
     mapping(address => uint256) public airdropAmounts;
 
+    event StakingContractUpdated(address indexed oldStakingContract, address indexed newStakingContract);
+
     function setUp() public {
         vm.startPrank(owner);
-        token = new ChainbaseToken();
+        cToken = new ChainbaseToken();
 
         // Setup airdrop amounts
         airdropAmounts[user1] = 100 ether;
@@ -36,9 +43,23 @@ contract ChainbaseAirdropTest is Test {
         // Generate merkle root
         merkleRoot = _generateRoot(leaves);
 
-        airdrop = new ChainbaseAirdrop(address(token), merkleRoot);
-        token.mint(owner, 1000 ether);
-        token.transfer(address(airdrop), 1000 ether);
+        airdrop = new ChainbaseAirdrop(address(cToken), merkleRoot);
+        cToken.mint(owner, 1000 ether);
+        cToken.transfer(address(airdrop), 1000 ether);
+
+        // Deploy Staking contract
+        ProxyAdmin stakingProxyAdmin = new ProxyAdmin();
+
+        address stakingImplementation = address(new Staking(address(cToken)));
+        TransparentUpgradeableProxy stakingProxy = new TransparentUpgradeableProxy(
+            stakingImplementation,
+            address(stakingProxyAdmin),
+            abi.encodeWithSelector(Staking.initialize.selector, owner, address(airdrop))
+        );
+        staking = Staking(address(stakingProxy));
+
+        airdrop.setStakingContract(address(staking));
+
         vm.stopPrank();
 
         // Generate merkle proof for user1
@@ -46,7 +67,7 @@ contract ChainbaseAirdropTest is Test {
     }
 
     function test_Constructor() public view {
-        assertEq(address(airdrop.cToken()), address(token));
+        assertEq(address(airdrop.cToken()), address(cToken));
         assertEq(airdrop.merkleRoot(), merkleRoot);
         assertEq(airdrop.owner(), owner);
     }
@@ -84,14 +105,39 @@ contract ChainbaseAirdropTest is Test {
         airdrop.updateMerkleRoot(newRoot);
     }
 
+    function test_SetStakingContract() public {
+        address newStakingContract = makeAddr("newStaking");
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit StakingContractUpdated(address(staking), newStakingContract);
+        airdrop.setStakingContract(newStakingContract);
+
+        assertEq(address(airdrop.stakingContract()), newStakingContract);
+    }
+
+    function test_SetStakingContract_RevertIfNotOwner() public {
+        address newStakingContract = makeAddr("newStaking");
+
+        vm.prank(user1);
+        vm.expectRevert("Ownable: caller is not the owner");
+        airdrop.setStakingContract(newStakingContract);
+    }
+
+    function test_SetStakingContract_RevertIfZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert("ChainbaseAirdrop: Invalid staking contract address");
+        airdrop.setStakingContract(address(0));
+    }
+
     function test_EmergencyWithdraw() public {
-        uint256 initialBalance = token.balanceOf(address(airdrop));
+        uint256 initialBalance = cToken.balanceOf(address(airdrop));
 
         vm.prank(owner);
         airdrop.emergencyWithdraw();
 
-        assertEq(token.balanceOf(owner), initialBalance);
-        assertEq(token.balanceOf(address(airdrop)), 0);
+        assertEq(cToken.balanceOf(owner), initialBalance);
+        assertEq(cToken.balanceOf(address(airdrop)), 0);
     }
 
     function test_EmergencyWithdraw_RevertIfNotOwner() public {
@@ -103,7 +149,7 @@ contract ChainbaseAirdropTest is Test {
     function test_ClaimAirdrop_RevertWhenDisabled() public {
         vm.prank(user1);
         vm.expectRevert("ChainbaseAirdrop: Airdrop is not enabled");
-        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, false);
     }
 
     function test_ClaimAirdrop_RevertWhenInsufficientBalance() public {
@@ -116,7 +162,7 @@ contract ChainbaseAirdropTest is Test {
 
         vm.prank(user1);
         vm.expectRevert("ChainbaseAirdrop: Insufficient balance");
-        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, false);
     }
 
     function test_ClaimAirdrop_Success() public {
@@ -124,15 +170,15 @@ contract ChainbaseAirdropTest is Test {
         vm.prank(owner);
         airdrop.setAirdropState(true);
 
-        uint256 userBalanceBefore = token.balanceOf(user1);
-        uint256 contractBalanceBefore = token.balanceOf(address(airdrop));
+        uint256 userBalanceBefore = cToken.balanceOf(user1);
+        uint256 contractBalanceBefore = cToken.balanceOf(address(airdrop));
 
         vm.prank(user1);
-        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, false);
 
         // Verify balances after claim
-        assertEq(token.balanceOf(user1), userBalanceBefore + airdropAmounts[user1]);
-        assertEq(token.balanceOf(address(airdrop)), contractBalanceBefore - airdropAmounts[user1]);
+        assertEq(cToken.balanceOf(user1), userBalanceBefore + airdropAmounts[user1]);
+        assertEq(cToken.balanceOf(address(airdrop)), contractBalanceBefore - airdropAmounts[user1]);
         assertTrue(airdrop.claimed(user1));
     }
 
@@ -142,12 +188,12 @@ contract ChainbaseAirdropTest is Test {
 
         // First claim
         vm.prank(user1);
-        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, false);
 
         // Try to claim again
         vm.prank(user1);
         vm.expectRevert("ChainbaseAirdrop: Airdrop already claimed");
-        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, false);
     }
 
     function test_ClaimAirdrop_RevertWhenInvalidAmount() public {
@@ -156,7 +202,7 @@ contract ChainbaseAirdropTest is Test {
 
         vm.prank(user1);
         vm.expectRevert("ChainbaseAirdrop: Invalid merkle proof");
-        airdrop.claimAirdrop(150 ether, merkleProof); // Wrong amount
+        airdrop.claimAirdrop(150 ether, merkleProof, false); // Wrong amount
     }
 
     function test_ClaimAirdrop_RevertWhenWrongUser() public {
@@ -165,7 +211,23 @@ contract ChainbaseAirdropTest is Test {
 
         vm.prank(user2); // Wrong user trying to use user1's proof
         vm.expectRevert("ChainbaseAirdrop: Invalid merkle proof");
-        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, false);
+    }
+
+    function test_ClaimAirdrop_WithStaking() public {
+        // Enable airdrop
+        vm.prank(owner);
+        airdrop.setAirdropState(true);
+
+        uint256 contractBalanceBefore = cToken.balanceOf(address(airdrop));
+
+        vm.prank(user1);
+        airdrop.claimAirdrop(airdropAmounts[user1], merkleProof, true);
+
+        // Verify balances and state
+        assertEq(cToken.balanceOf(address(staking)), airdropAmounts[user1]);
+        assertEq(cToken.balanceOf(address(airdrop)), contractBalanceBefore - airdropAmounts[user1]);
+        assertTrue(airdrop.claimed(user1));
     }
 
     // Helper function to generate merkle root

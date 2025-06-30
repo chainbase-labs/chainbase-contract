@@ -8,10 +8,12 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {Staking} from "../src/staking/Staking.sol";
 import {ChainbaseToken} from "../src/ChainbaseToken.sol";
+import {ChainbaseAirdrop} from "../src/ChainbaseAirdrop.sol";
 
 contract StakingTest is Test {
     Staking public staking;
     ChainbaseToken public cToken;
+    ChainbaseAirdrop public airdrop;
 
     address public owner;
     address public operator;
@@ -25,9 +27,9 @@ contract StakingTest is Test {
     event StakeDeposited(address indexed operator, uint256 amount);
     event UnstakeRequested(address indexed operator, uint256 amount, uint256 unlockTime);
     event StakeWithdrawn(address indexed operator, uint256 amount);
-    event DelegationDeposited(address indexed delegator, address indexed operator, uint256 amount);
-    event DelegationWithdrawn(address indexed delegator, address indexed operator, uint256 amount);
-    event UndelegateRequested(address indexed delegator, address indexed operator, uint256 amount, uint256 unlockTime);
+    event DelegationDeposited(address indexed delegator, uint256 amount);
+    event DelegationWithdrawn(address indexed delegator, uint256 amount);
+    event UndelegateRequested(address indexed delegator, uint256 amount, uint256 unlockTime);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -37,6 +39,9 @@ contract StakingTest is Test {
         // Deploy C Token
         cToken = new ChainbaseToken();
 
+        // Deploy Chainbase Airdrop contract
+        airdrop = new ChainbaseAirdrop(address(cToken), "merkleRoot");
+
         // Deploy Staking contract
         vm.prank(owner);
         ProxyAdmin stakingProxyAdmin = new ProxyAdmin();
@@ -45,7 +50,7 @@ contract StakingTest is Test {
         TransparentUpgradeableProxy stakingProxy = new TransparentUpgradeableProxy(
             stakingImplementation,
             address(stakingProxyAdmin),
-            abi.encodeWithSelector(Staking.initialize.selector, owner)
+            abi.encodeWithSelector(Staking.initialize.selector, owner, address(airdrop))
         );
         staking = Staking(address(stakingProxy));
 
@@ -191,67 +196,39 @@ contract StakingTest is Test {
     function test_Delegate() public {
         uint256 delegateAmount = 1000 * 10 ** 18;
 
-        // Add operator to whitelist
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
-        vm.prank(owner);
-        staking.addWhitelist(operators);
-
         // Approve tokens
         vm.prank(delegator);
         cToken.approve(address(staking), delegateAmount);
 
-        // Insufficient operator stake amount
-        vm.prank(delegator);
-        vm.expectRevert("Staking: Insufficient operator stake amount");
-        staking.delegate(operator, delegateAmount);
-
-        vm.prank(operator);
-        cToken.approve(address(staking), MIN_STAKE);
-
-        vm.prank(operator);
-        staking.stake(MIN_STAKE);
-
         // Delegate tokens
         vm.prank(delegator);
         vm.expectEmit(true, true, true, true);
-        emit DelegationDeposited(delegator, operator, delegateAmount);
-        staking.delegate(operator, delegateAmount);
+        emit DelegationDeposited(delegator, delegateAmount);
+        staking.delegate(delegateAmount);
 
-        assertEq(staking.delegations(delegator, operator), delegateAmount);
+        assertEq(staking.delegations(delegator), delegateAmount);
     }
 
     // Test undelegate
     function test_Undelegate() public {
         uint256 delegateAmount = 1000 * 10 ** 18;
 
-        // Setup: add operator to whitelist, stake and delegate
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
-        vm.prank(owner);
-        staking.addWhitelist(operators);
-
-        vm.prank(operator);
-        cToken.approve(address(staking), MIN_STAKE);
-
-        vm.prank(operator);
-        staking.stake(MIN_STAKE);
-
+        // Setup: delegate first
         vm.prank(delegator);
         cToken.approve(address(staking), delegateAmount);
 
         vm.prank(delegator);
-        staking.delegate(operator, delegateAmount);
+        staking.delegate(delegateAmount);
 
         // Execute undelegate
         vm.prank(delegator);
         vm.expectEmit(true, true, true, true);
-        emit UndelegateRequested(delegator, operator, delegateAmount, block.timestamp + 7 days);
-        staking.undelegate(operator, delegateAmount);
+        emit UndelegateRequested(delegator, delegateAmount, block.timestamp + 7 days);
+        staking.undelegate(delegateAmount);
 
         // Verify state changes
-        assertEq(staking.delegations(delegator, operator), 0);
-        (uint256 amount, uint256 unlockTime) = staking.undelegateRequests(delegator, operator);
+        assertEq(staking.delegations(delegator), 0);
+        (uint256 amount, uint256 unlockTime) = staking.undelegateRequests(delegator);
         assertEq(amount, delegateAmount);
         assertEq(unlockTime, block.timestamp + 7 days);
     }
@@ -261,26 +238,15 @@ contract StakingTest is Test {
         uint256 delegateAmount = 1000 * 10 ** 18;
 
         // Setup initial conditions
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
-        vm.prank(owner);
-        staking.addWhitelist(operators);
-
-        vm.prank(operator);
-        cToken.approve(address(staking), MIN_STAKE);
-
-        vm.prank(operator);
-        staking.stake(MIN_STAKE);
-
         vm.prank(delegator);
         cToken.approve(address(staking), delegateAmount);
 
         vm.prank(delegator);
-        staking.delegate(operator, delegateAmount);
+        staking.delegate(delegateAmount);
 
         // Execute undelegate
         vm.prank(delegator);
-        staking.undelegate(operator, delegateAmount);
+        staking.undelegate(delegateAmount);
 
         // Wait for unlock period
         vm.warp(block.timestamp + 7 days);
@@ -288,11 +254,11 @@ contract StakingTest is Test {
         // Withdraw delegation
         vm.prank(delegator);
         vm.expectEmit(true, true, true, true);
-        emit DelegationWithdrawn(delegator, operator, delegateAmount);
-        staking.withdrawDelegation(operator);
+        emit DelegationWithdrawn(delegator, delegateAmount);
+        staking.withdrawDelegation();
 
         // Verify final state
-        (uint256 amount, uint256 unlockTime) = staking.undelegateRequests(delegator, operator);
+        (uint256 amount, uint256 unlockTime) = staking.undelegateRequests(delegator);
         assertEq(amount, 0);
         assertEq(unlockTime, 0);
         assertEq(cToken.balanceOf(delegator), INITIAL_BALANCE);
@@ -323,11 +289,11 @@ contract StakingTest is Test {
 
         vm.prank(delegator);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        staking.delegate(operator, MIN_STAKE);
+        staking.delegate(MIN_STAKE);
 
         vm.prank(delegator);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        staking.withdrawDelegation(operator);
+        staking.withdrawDelegation();
 
         vm.prank(owner);
         staking.unpause();
