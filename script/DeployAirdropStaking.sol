@@ -5,18 +5,19 @@ import "forge-std/Script.sol";
 
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
+import "../src/ChainbaseAirdrop.sol";
 import "../src/staking/Staking.sol";
 
-contract DeployStaking is Script {
-    //forge script script/DeployStaking.sol:DeployStaking --rpc-url $RPC_URL --broadcast --verify -vvvv
+contract DeployAirdropStaking is Script {
+    //forge script script/DeployAirdropStaking.sol:DeployAirdropStaking --rpc-url $RPC_URL --broadcast --verify -vvvv
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        // address cTokenAddress = address(0x21b09d2a0baC5B55AfCE96A7d0f3711e59711Feb); // mainnet
-        // address cTokenAddress = address(0x911bb6Fee00AE3ca3943Ea8AE7f571151BC78f67); // holesky
-        // address cTokenAddress = address(0xe30a02dF61b661140938b8e0B910CD81b466A46b); // chainbase testnet
-        address cTokenAddress = address(0xF494b1883F029D8172d192D8074e5e82F1F9dAe7); //  base_sepolia
+        address cTokenAddress = address(0xA1f8B99b010c72201d149EFBDC38b88b342E7C18); //  base_sepolia
+        ChainbaseAirdrop airdrop = new ChainbaseAirdrop(cTokenAddress, "");
+        console.log("ChainbaseAirdrop deployed to:", address(airdrop));
+
         address stakingImplementation = address(new Staking(cTokenAddress));
 
         ProxyAdmin stakingProxyAdmin = new ProxyAdmin();
@@ -26,10 +27,12 @@ contract DeployStaking is Script {
         TransparentUpgradeableProxy stakingProxy = new TransparentUpgradeableProxy(
             stakingImplementation,
             address(stakingProxyAdmin),
-            abi.encodeWithSelector(Staking.initialize.selector, vm.addr(deployerPrivateKey))
+            abi.encodeWithSelector(Staking.initialize.selector, vm.addr(deployerPrivateKey), address(airdrop))
         );
 
         console.log("Staking proxy deployed to:", address(stakingProxy));
+
+        airdrop.setStakingContract(address(stakingProxy));
 
         vm.stopBroadcast();
     }

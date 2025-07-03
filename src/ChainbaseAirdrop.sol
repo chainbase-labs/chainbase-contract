@@ -48,7 +48,7 @@ contract ChainbaseAirdrop is Ownable {
         emit AirdropStateUpdated(_isEnabled);
     }
 
-    function updateMerkleRoot(bytes32 _newMerkleRoot) external onlyOwner {
+    function setMerkleRoot(bytes32 _newMerkleRoot) external onlyOwner {
         bytes32 oldRoot = merkleRoot;
         merkleRoot = _newMerkleRoot;
         emit MerkleRootUpdated(oldRoot, _newMerkleRoot);
