@@ -27,8 +27,11 @@ contract DeployAirdropStaking is Script {
         TransparentUpgradeableProxy stakingProxy = new TransparentUpgradeableProxy(
             stakingImplementation,
             address(stakingProxyAdmin),
-            abi.encodeWithSelector(Staking.initialize.selector, vm.addr(deployerPrivateKey), address(airdrop))
+            abi.encodeWithSelector(Staking.initialize.selector, address(airdrop))
         );
+
+        Staking staking = Staking(address(stakingProxy));
+        staking.transferOwnership(vm.addr(deployerPrivateKey));
 
         console.log("Staking proxy deployed to:", address(stakingProxy));
 
