@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import "./Zone.sol";
 import "./ZoneFactoryStorage.sol";
@@ -11,9 +11,8 @@ contract ZoneFactory is OwnableUpgradeable, PausableUpgradeable, ZoneFactoryStor
     //=========================================================================
     //                                INITIALIZE
     //=========================================================================
-    function initialize(address initialOwner) public initializer {
-        require(initialOwner != address(0), "ZoneFactory: Invalid initial owner address");
-        __Ownable_init(initialOwner);
+    function initialize() public initializer {
+        __Ownable_init();
         __Pausable_init();
         whitelistEnabled = true; // Enable whitelist by default
     }

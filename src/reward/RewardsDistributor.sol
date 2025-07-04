@@ -5,8 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import "./RewardsDistributorStorage.sol";
 
@@ -43,15 +43,13 @@ contract RewardsDistributor is
     //                                INITIALIZE
     //=========================================================================
     /// @notice Initializes the contract with required parameters
-    /// @param initialOwner Address of the contract owner
     /// @param _rewardsUpdater Address authorized to update rewards
     /// @param _activationDelay Time delay before rewards become active
-    function initialize(address initialOwner, address _rewardsUpdater, uint32 _activationDelay) public initializer {
-        require(initialOwner != address(0), "RewardsDistributor: Invalid initial owner address");
+    function initialize(address _rewardsUpdater, uint32 _activationDelay) public initializer {
         require(_rewardsUpdater != address(0), "RewardsDistributor: Invalid rewards updater address");
         require(_activationDelay > 0, "RewardsDistributor: Invalid activation delay");
 
-        __Ownable_init(initialOwner);
+        __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 

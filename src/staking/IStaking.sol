@@ -27,9 +27,11 @@ interface IStaking {
     event StakeDeposited(address indexed operator, uint256 amount);
     event UnstakeRequested(address indexed operator, uint256 amount, uint256 unlockTime);
     event StakeWithdrawn(address indexed operator, uint256 amount);
-    event DelegationDeposited(address indexed delegator, uint256 amount);
-    event UndelegateRequested(address indexed delegator, uint256 amount, uint256 unlockTime);
-    event DelegationWithdrawn(address indexed delegator, uint256 amount);
+    event DelegationDeposited(uint256 indexed tokenId, address indexed delegator, uint256 amount);
+    event DelegationIncreased(uint256 indexed tokenId, uint256 oldAmount, uint256 newAmount);
+    event UndelegateRequested(uint256 indexed tokenId, address indexed delegator, uint256 amount, uint256 unlockTime);
+    event UndelegateCanceled(uint256 indexed tokenId, address indexed delegator);
+    event DelegationWithdrawn(uint256 indexed tokenId, address indexed delegator, uint256 amount);
 
     //=========================================================================
     //                                FUNCTIONS
@@ -41,6 +43,8 @@ interface IStaking {
     function withdrawStake() external;
     function delegate(uint256 amount) external;
     function delegateFromAirdrop(address delegator, uint256 amount) external;
-    function undelegate(uint256 amount) external;
-    function withdrawDelegation() external;
+    function increaseDelegation(uint256 tokenId, uint256 amount) external;
+    function undelegate(uint256 tokenId) external;
+    function cancelUndelegate(uint256 tokenId) external;
+    function withdrawDelegation(uint256 tokenId) external;
 }

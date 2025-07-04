@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.22;
 
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./IStaking.sol";
@@ -17,6 +18,8 @@ abstract contract StakingStorage is IStaking {
     //=========================================================================
     //                                STORAGE
     //=========================================================================
+    // The counter for the NFT token IDs
+    Counters.Counter internal _tokenIdCounter;
     // The address of the airdrop contract
     address public airdropContract;
     // Minimum amount of tokens required for an operator to stake
@@ -27,8 +30,8 @@ abstract contract StakingStorage is IStaking {
     mapping(address => uint256) public operatorStakes;
     // Mapping of operator addresses to their unstake requests
     mapping(address => UnstakeRequest) public unstakeRequests;
-    // Mapping of delegator addresses to their delegated amounts
-    mapping(address => uint256) public delegations;
-    // Mapping of delegator addresses to their Undelegate request
-    mapping(address => UndelegateRequest) public undelegateRequests;
+    // Mapping from NFT token ID to delegation amount
+    mapping(uint256 => uint256) public delegations;
+    // Mapping of NFT token ID to Undelegate request
+    mapping(uint256 => UndelegateRequest) public undelegateRequests;
 }

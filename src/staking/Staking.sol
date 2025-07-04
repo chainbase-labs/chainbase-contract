@@ -3,13 +3,15 @@ pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 
 import "./StakingStorage.sol";
 
-contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, StakingStorage {
+contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, ERC721EnumerableUpgradeable, StakingStorage {
     using SafeERC20 for IERC20;
+    using Counters for Counters.Counter;
 
     //=========================================================================
     //                                MODIFIERS
@@ -32,12 +34,10 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
     //                                INITIALIZE
     //=========================================================================
     function initialize(
-        address initialOwner,
         address _airdropContract
     ) public initializer {
-        require(initialOwner != address(0), "Staking: Invalid initial owner address");
         require(_airdropContract != address(0), "Staking: Invalid airdrop contract address");
-        __Ownable_init(initialOwner);
+        __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         airdropContract = _airdropContract;
@@ -151,9 +151,8 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         require(amount > 0, "Staking: Amount must be greater than 0");
 
         cToken.safeTransferFrom(delegator, address(this), amount);
-        delegations[delegator] += amount;
 
-        emit DelegationDeposited(delegator, amount);
+        _delegate(delegator, amount);
     }
 
     /**
@@ -163,47 +162,117 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
      */
     function delegateFromAirdrop(address delegator, uint256 amount) external whenNotPaused nonReentrant {
         require(msg.sender == airdropContract, "Staking: Only airdrop contract");
+        require(delegator != address(0), "Staking: Invalid delegator address");
         require(amount > 0, "Staking: Amount must be greater than 0");
 
-        delegations[delegator] += amount;
+        _delegate(delegator, amount);
+    }
 
-        emit DelegationDeposited(delegator, amount);
+    /**
+     * @notice Internal function to delegate tokens
+     * @param delegator The address of the delegator
+     * @param amount The amount of tokens to delegate
+     */
+    function _delegate(address delegator, uint256 amount) internal {
+        // Mint NFT
+        _tokenIdCounter.increment();
+        uint256 tokenId = _tokenIdCounter.current();
+        _safeMint(delegator, tokenId);
+
+        delegations[tokenId] = amount;
+
+        emit DelegationDeposited(tokenId, delegator, amount);
+    }
+
+    /**
+     * @notice Allows delegators to increase their delegation amount
+     * @param tokenId The ID of the NFT representing the delegation
+     * @param amount The amount of tokens to increase the delegation by
+     */
+    function increaseDelegation(uint256 tokenId, uint256 amount) external whenNotPaused nonReentrant {
+        address delegator = msg.sender;
+        require(ownerOf(tokenId) == delegator, "Staking: Not token owner");
+        require(amount > 0, "Staking: Amount must be greater than 0");
+
+        uint256 oldAmount = delegations[tokenId];
+        delegations[tokenId] += amount;
+
+        emit DelegationIncreased(tokenId, oldAmount, delegations[tokenId]);
     }
 
     /**
      * @notice Allows delegators to initiate the undelegate process
-     * @param amount The amount of tokens to undelegate
+     * @param tokenId The ID of the NFT representing the delegation
      */
-    function undelegate(uint256 amount) external whenNotPaused nonReentrant {
+    function undelegate(uint256 tokenId) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
+        require(ownerOf(tokenId) == delegator, "Staking: Not token owner");
+        require(undelegateRequests[tokenId].amount == 0, "Staking: Existing undelegate request");
 
-        require(amount > 0, "Staking: Amount must be greater than 0");
-        require(delegations[delegator] >= amount, "Staking: Insufficient delegation amount");
-        require(undelegateRequests[delegator].amount == 0, "Staking: Existing undelegate request");
+        uint256 amount = delegations[tokenId];
+        require(amount > 0, "Staking: No delegation for this token");
 
-        delegations[delegator] -= amount;
         uint256 unlockTime = block.timestamp + UNLOCK_PERIOD;
-        undelegateRequests[delegator] = UndelegateRequest({amount: amount, unlockTime: unlockTime});
+        undelegateRequests[tokenId] = UndelegateRequest({
+            amount: amount,
+            unlockTime: unlockTime
+        });
 
-        emit UndelegateRequested(delegator, amount, unlockTime);
+        emit UndelegateRequested(tokenId, delegator, amount, unlockTime);
+    }
+
+    /**
+     * @notice Allows delegators to cancel their undelegate request
+     * @param tokenId The ID of the NFT representing the delegation
+     */
+    function cancelUndelegate(uint256 tokenId) external whenNotPaused nonReentrant {
+        address delegator = msg.sender;
+        require(ownerOf(tokenId) == delegator, "Staking: Not token owner");
+        require(undelegateRequests[tokenId].amount > 0, "Staking: No pending undelegate request");
+
+        // Clean up state
+        delete undelegateRequests[tokenId];
+
+        emit UndelegateCanceled(tokenId, delegator);
     }
 
     /**
      * @notice Allows delegators to withdraw their undelegated tokens after the unlock period
      * @dev Transfers tokens back to the delegator after the unlock period has passed
      */
-    function withdrawDelegation() external whenNotPaused nonReentrant {
+    function withdrawDelegation(uint256 tokenId) external whenNotPaused nonReentrant {
         address delegator = msg.sender;
-        UndelegateRequest memory request = undelegateRequests[delegator];
+        UndelegateRequest memory request = undelegateRequests[tokenId];
+        uint256 amount = request.amount;
 
-        require(request.amount > 0, "Staking: No pending undelegate request");
+        require(ownerOf(tokenId) == delegator, "Staking: Not token owner");
+        require(amount > 0, "Staking: No pending undelegate request");
         require(block.timestamp >= request.unlockTime, "Staking: Tokens still locked");
 
-        uint256 amount = request.amount;
-        delete undelegateRequests[delegator];
+        // Clean up state
+        delete delegations[tokenId];
+        delete undelegateRequests[tokenId];
 
+        // Burn NFT
+        _burn(tokenId);
+
+        // Transfer tokens
         cToken.safeTransfer(delegator, amount);
 
-        emit DelegationWithdrawn(delegator, amount);
+        emit DelegationWithdrawn(tokenId, delegator, amount);
+    }
+
+    /**
+     * @notice Get total delegation amount for an address
+     * @param delegator The address to check
+     * @return total The total delegation amount
+     */
+    function getDelegationAmount(address delegator) public view returns (uint256 total) {
+        uint256 balance = balanceOf(delegator);
+        for (uint256 i = 0; i < balance; i++) {
+            uint256 tokenId = tokenOfOwnerByIndex(delegator, i);
+            total += delegations[tokenId];
+        }
+        return total;
     }
 }
