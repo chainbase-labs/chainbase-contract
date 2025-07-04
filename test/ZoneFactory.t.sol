@@ -29,16 +29,13 @@ contract ZoneFactoryTest is Test {
             factoryImplementation, address(proxyAdmin), abi.encodeWithSelector(ZoneFactory.initialize.selector, owner)
         );
         factory = ZoneFactory(address(factoryProxy));
+
+        factory.transferOwnership(owner);
     }
 
     function test_Initialize() public view {
         assertEq(factory.owner(), owner);
         assertTrue(factory.whitelistEnabled());
-    }
-
-    function testFail_InitializeZeroAddress() public {
-        factory = new ZoneFactory();
-        factory.initialize(address(0));
     }
 
     function test_SetWhitelistEnabled() public {

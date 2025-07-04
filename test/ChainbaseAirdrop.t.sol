@@ -54,7 +54,7 @@ contract ChainbaseAirdropTest is Test {
         TransparentUpgradeableProxy stakingProxy = new TransparentUpgradeableProxy(
             stakingImplementation,
             address(stakingProxyAdmin),
-            abi.encodeWithSelector(Staking.initialize.selector, owner, address(airdrop))
+            abi.encodeWithSelector(Staking.initialize.selector, address(airdrop))
         );
         staking = Staking(address(stakingProxy));
 
@@ -88,21 +88,21 @@ contract ChainbaseAirdropTest is Test {
         airdrop.setAirdropState(true);
     }
 
-    function test_UpdateMerkleRoot() public {
+    function test_SetMerkleRoot() public {
         bytes32 newRoot = keccak256(abi.encodePacked("new_root"));
 
         vm.prank(owner);
-        airdrop.updateMerkleRoot(newRoot);
+        airdrop.setMerkleRoot(newRoot);
 
         assertEq(airdrop.merkleRoot(), newRoot);
     }
 
-    function test_UpdateMerkleRoot_RevertIfNotOwner() public {
+    function test_SetMerkleRoot_RevertIfNotOwner() public {
         bytes32 newRoot = keccak256(abi.encodePacked("new_root"));
 
         vm.prank(user1);
         vm.expectRevert("Ownable: caller is not the owner");
-        airdrop.updateMerkleRoot(newRoot);
+        airdrop.setMerkleRoot(newRoot);
     }
 
     function test_SetStakingContract() public {

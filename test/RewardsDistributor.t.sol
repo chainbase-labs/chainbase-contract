@@ -51,9 +51,11 @@ contract RewardsDistributorTest is Test {
         TransparentUpgradeableProxy distributorProxy = new TransparentUpgradeableProxy(
             distributorImplementation,
             address(distributorProxyAdmin),
-            abi.encodeWithSelector(RewardsDistributor.initialize.selector, owner, rewardsUpdater, ACTIVATION_DELAY)
+            abi.encodeWithSelector(RewardsDistributor.initialize.selector, rewardsUpdater, ACTIVATION_DELAY)
         );
         distributor = RewardsDistributor(address(distributorProxy));
+
+        distributor.transferOwnership(owner);
 
         leaves = new bytes32[](2);
         leaves[0] = keccak256(abi.encodePacked(user1, ROLE_OPERATOR, user1Amount)); // user1's leaf as developer
@@ -87,14 +89,9 @@ contract RewardsDistributorTest is Test {
         assertEq(distributor.activationDelay(), ACTIVATION_DELAY);
     }
 
-    function testFail_InitializeZeroOwner() public {
-        distributor = new RewardsDistributor(address(cToken));
-        distributor.initialize(address(0), rewardsUpdater, ACTIVATION_DELAY);
-    }
-
     function testFail_InitializeZeroUpdater() public {
         distributor = new RewardsDistributor(address(cToken));
-        distributor.initialize(owner, address(0), ACTIVATION_DELAY);
+        distributor.initialize(address(0), ACTIVATION_DELAY);
     }
 
     function test_SetRewardsUpdater() public {
