@@ -28,7 +28,7 @@ interface IStaking {
     event UnstakeRequested(address indexed operator, uint256 amount, uint256 unlockTime);
     event StakeWithdrawn(address indexed operator, uint256 amount);
     event DelegationDeposited(uint256 indexed tokenId, address indexed delegator, uint256 amount);
-    event DelegationIncreased(uint256 indexed tokenId, uint256 oldAmount, uint256 newAmount);
+    event DelegationIncreased(uint256 indexed tokenId, address indexed delegator, uint256 oldAmount, uint256 newAmount);
     event UndelegateRequested(uint256 indexed tokenId, address indexed delegator, uint256 amount, uint256 unlockTime);
     event UndelegateCanceled(uint256 indexed tokenId, address indexed delegator);
     event DelegationWithdrawn(uint256 indexed tokenId, address indexed delegator, uint256 amount);

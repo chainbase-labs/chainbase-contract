@@ -40,6 +40,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
+        __ERC721_init("Chainbase Staking", "CS");
         airdropContract = _airdropContract;
         minOperatorStake = 500000 * 10 ** 18;
     }
@@ -197,7 +198,7 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         uint256 oldAmount = delegations[tokenId];
         delegations[tokenId] += amount;
 
-        emit DelegationIncreased(tokenId, oldAmount, delegations[tokenId]);
+        emit DelegationIncreased(tokenId, delegator, oldAmount, delegations[tokenId]);
     }
 
     /**

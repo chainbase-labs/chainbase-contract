@@ -15,9 +15,9 @@ contract UpgradeStaking is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // chainbase testnet
-        address proxyAdmin = address(0xB1398C69F02B9550D02033D217A05A64E1412124);
-        address stakingProxy = address(0x957c914E71179215672635B435162F1e582b9Df0);
-        address cTokenAddress = address(0xF494b1883F029D8172d192D8074e5e82F1F9dAe7);
+        address proxyAdmin = address(0xBf3A61fC96EDcd86AF764C117dcB55465110886a);
+        address stakingProxy = address(0x0035F5dfC849d95732E0F5be5d2c354e3772f4d0);
+        address cTokenAddress = address(0xA1f8B99b010c72201d149EFBDC38b88b342E7C18);
         Staking newImplementation = new Staking(cTokenAddress);
 
         ProxyAdmin(proxyAdmin).upgrade(ITransparentUpgradeableProxy(stakingProxy), address(newImplementation));

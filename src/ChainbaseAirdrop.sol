@@ -36,6 +36,8 @@ contract ChainbaseAirdrop is Ownable {
     //                                CONSTRUCTOR
     //=========================================================================
     constructor(address _cToken, bytes32 _merkleRoot) {
+        require(_cToken != address(0), "ChainbaseAirdrop: Invalid cToken address");
+        require(_merkleRoot != bytes32(0), "ChainbaseAirdrop: Invalid merkle root");
         cToken = IERC20(_cToken);
         merkleRoot = _merkleRoot;
     }
@@ -49,6 +51,7 @@ contract ChainbaseAirdrop is Ownable {
     }
 
     function setMerkleRoot(bytes32 _newMerkleRoot) external onlyOwner {
+        require(_newMerkleRoot != bytes32(0), "ChainbaseAirdrop: Invalid merkle root");
         bytes32 oldRoot = merkleRoot;
         merkleRoot = _newMerkleRoot;
         emit MerkleRootUpdated(oldRoot, _newMerkleRoot);

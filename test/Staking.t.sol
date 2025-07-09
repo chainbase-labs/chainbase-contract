@@ -31,7 +31,7 @@ contract StakingTest is Test {
     event DelegationWithdrawn(uint256 indexed tokenId, address indexed delegator, uint256 amount);
     event UndelegateRequested(uint256 indexed tokenId, address indexed delegator, uint256 amount, uint256 unlockTime);
     event UndelegateCanceled(uint256 indexed tokenId, address indexed delegator);
-    event DelegationIncreased(uint256 indexed tokenId, uint256 oldAmount, uint256 newAmount);
+    event DelegationIncreased(uint256 indexed tokenId, address indexed delegator, uint256 oldAmount, uint256 newAmount);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -228,7 +228,7 @@ contract StakingTest is Test {
 
         // Increase delegation amount
         vm.expectEmit(true, true, true, true);
-        emit DelegationIncreased(1, initialAmount, initialAmount + additionalAmount);
+        emit DelegationIncreased(1, delegator, initialAmount, initialAmount + additionalAmount);
         staking.increaseDelegation(1, additionalAmount);
         vm.stopPrank();
 

@@ -16,6 +16,7 @@ contract DeployAirdropStaking is Script {
 
         address cTokenAddress = address(0xA1f8B99b010c72201d149EFBDC38b88b342E7C18); //  base_sepolia
         ChainbaseAirdrop airdrop = new ChainbaseAirdrop(cTokenAddress, "");
+//        ChainbaseAirdrop airdrop = ChainbaseAirdrop(address(0x6E6664d74F1180926Ac2DEe0d3e71B3c684cb4d3));
         console.log("ChainbaseAirdrop deployed to:", address(airdrop));
 
         address stakingImplementation = address(new Staking(cTokenAddress));
