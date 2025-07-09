@@ -225,6 +225,7 @@ contract StakingTest is Test {
         vm.startPrank(delegator);
         cToken.approve(address(staking), initialAmount + additionalAmount);
         staking.delegate(initialAmount);
+        assertEq(cToken.balanceOf(address(staking)), initialAmount);
 
         // Increase delegation amount
         vm.expectEmit(true, true, true, true);
@@ -233,6 +234,7 @@ contract StakingTest is Test {
         vm.stopPrank();
 
         assertEq(staking.delegations(1), initialAmount + additionalAmount);
+        assertEq(cToken.balanceOf(address(staking)), initialAmount + additionalAmount);
     }
 
     // Test undelegate

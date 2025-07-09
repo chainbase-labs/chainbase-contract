@@ -195,6 +195,8 @@ contract Staking is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgr
         require(ownerOf(tokenId) == delegator, "Staking: Not token owner");
         require(amount > 0, "Staking: Amount must be greater than 0");
 
+        cToken.safeTransferFrom(delegator, address(this), amount);
+
         uint256 oldAmount = delegations[tokenId];
         delegations[tokenId] += amount;
 
