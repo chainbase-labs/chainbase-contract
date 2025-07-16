@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./IRewardsDistributor.sol";
 
-contract RewardsDistributorStorage is IRewardsDistributor {
+abstract contract RewardsDistributorStorage is IRewardsDistributor {
     //=========================================================================
     //                                CONSTANT
     //=========================================================================
@@ -17,11 +17,9 @@ contract RewardsDistributorStorage is IRewardsDistributor {
     //=========================================================================
     // Address authorized to update rewards
     address public rewardsUpdater;
-    // Time delay before rewards become active
-    uint32 public activationDelay;
-
-    // Array of all distribution roots
-    DistributionRoot[] internal _distributionRoots;
+    
+    // Current distribution root
+    bytes32 public distributionRoot;
 
     // Mapping of address and role to total claimed rewards
     mapping(address => mapping(Role => uint256)) public rewardClaimed;

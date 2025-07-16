@@ -44,17 +44,14 @@ contract RewardsDistributor is
     //=========================================================================
     /// @notice Initializes the contract with required parameters
     /// @param _rewardsUpdater Address authorized to update rewards
-    /// @param _activationDelay Time delay before rewards become active
-    function initialize(address _rewardsUpdater, uint32 _activationDelay) public initializer {
+    function initialize(address _rewardsUpdater) public initializer {
         require(_rewardsUpdater != address(0), "RewardsDistributor: Invalid rewards updater address");
-        require(_activationDelay > 0, "RewardsDistributor: Invalid activation delay");
 
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 
         rewardsUpdater = _rewardsUpdater;
-        activationDelay = _activationDelay;
     }
 
     //=========================================================================
@@ -69,17 +66,6 @@ contract RewardsDistributor is
         rewardsUpdater = _rewardsUpdater;
 
         emit RewardsUpdaterUpdated(oldUpdater, _rewardsUpdater);
-    }
-
-    /// @notice Updates the activation delay
-    /// @param _activationDelay New activation delay
-    function setActivationDelay(uint32 _activationDelay) external onlyOwner {
-        require(_activationDelay > 0, "RewardsDistributor: Invalid activation delay");
-
-        uint32 oldDelay = activationDelay;
-        activationDelay = _activationDelay;
-
-        emit ActivationDelayUpdated(oldDelay, _activationDelay);
     }
 
     /// @notice Transfers all tokens to the owner
@@ -99,56 +85,33 @@ contract RewardsDistributor is
     //=========================================================================
     //                               MANAGE-rewardsUpdater
     //=========================================================================
-    /// @notice Submits a new merkle root for rewards distribution
-    /// @param root Merkle root of the distribution
+    /// @notice Updates the merkle root for rewards distribution
+    /// @param newRoot New merkle root of the distribution
     /// @param amount Total amount of tokens to be distributed
-    function submitRoot(bytes32 root, uint256 amount) external onlyRewardsUpdater whenNotPaused {
-        uint32 activateTime = uint32(block.timestamp) + activationDelay;
+    function updateRoot(bytes32 newRoot, uint256 amount) external onlyRewardsUpdater {
+        require(newRoot != bytes32(0), "RewardsDistributor: Invalid root");
+
+        bytes32 oldRoot = distributionRoot;
+        distributionRoot = newRoot;
 
         require(cToken.transferFrom(msg.sender, address(this), amount), "RewardsDistributor: Transfer failed");
 
-        _distributionRoots.push(DistributionRoot({root: root, activatedAt: activateTime, disabled: false}));
-
-        emit RootSubmitted(_distributionRoots.length - 1, root, amount);
-    }
-
-    /// @notice Disables a distribution root
-    /// @param rootIndex Index of the distribution root
-    function disableRoot(uint256 rootIndex) external onlyRewardsUpdater whenNotPaused {
-        require(rootIndex < _distributionRoots.length, "RewardsDistributor: invalid rootIndex");
-
-        DistributionRoot storage root = _distributionRoots[rootIndex];
-
-        require(!root.disabled, "RewardsDistributor: root already disabled");
-        require(block.timestamp < root.activatedAt, "RewardsDistributor: root already activated");
-
-        root.disabled = true;
-
-        emit RootDisabled(rootIndex);
+        emit RootUpdated(oldRoot, newRoot, amount);
     }
 
     //=========================================================================
     //                                EXTERNAL
     //=========================================================================
     /// @notice Claims rewards for the caller
-    /// @param rootIndex Index of the distribution root
     /// @param role Role of the claimer (developer, operator, or delegator)
     /// @param amount Total cumulative amount of rewards claimable by the user
     /// @param proof Merkle proof to verify the claim
-    function claimRewards(uint256 rootIndex, Role role, uint256 amount, bytes32[] calldata proof)
-        external
-        nonReentrant
-        whenNotPaused
-    {
-        require(rootIndex < _distributionRoots.length, "RewardsDistributor: Invalid root");
-        DistributionRoot storage root = _distributionRoots[rootIndex];
-
-        require(!root.disabled, "RewardsDistributor: Root already disabled");
-        require(block.timestamp >= root.activatedAt, "RewardsDistributor: Not activated");
+    function claimRewards(Role role, uint256 amount, bytes32[] calldata proof) external nonReentrant whenNotPaused {
+        require(distributionRoot != bytes32(0), "RewardsDistributor: No active distribution");
 
         // Verify merkle proof - validates user address, role and amount
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender, role, amount));
-        require(MerkleProof.verify(proof, root.root, leaf), "RewardsDistributor: Invalid proof");
+        require(MerkleProof.verify(proof, distributionRoot, leaf), "RewardsDistributor: Invalid proof");
 
         // Update claim record for specific role
         uint256 claimable = amount - rewardClaimed[msg.sender][role];
@@ -159,26 +122,5 @@ contract RewardsDistributor is
         cToken.safeTransfer(msg.sender, claimable);
 
         emit RewardsClaimed(msg.sender, claimable);
-    }
-
-    //=========================================================================
-    //                                VIEW
-    //=========================================================================
-    function getDistributionRoot(uint256 rootIndex) external view returns (DistributionRoot memory) {
-        require(rootIndex < _distributionRoots.length, "RewardsDistributor: Invalid index");
-        return _distributionRoots[rootIndex];
-    }
-
-    function getRootIndexFromHash(bytes32 rootHash) public view returns (uint32) {
-        for (uint32 i = uint32(_distributionRoots.length); i > 0; i--) {
-            if (_distributionRoots[i - 1].root == rootHash) {
-                return i - 1;
-            }
-        }
-        revert("RewardsDistributor: Root not found");
-    }
-
-    function getDistributionRootsLength() external view returns (uint256) {
-        return _distributionRoots.length;
     }
 }

@@ -19,8 +19,6 @@ contract RewardsDistributorTest is Test {
     address public user1;
     address public user2;
 
-    uint32 public constant ACTIVATION_DELAY = 1 weeks;
-
     bytes32 public merkleRoot;
     uint256 public totalAmount = 1000e18;
     bytes32[] public mockProof;
@@ -51,15 +49,15 @@ contract RewardsDistributorTest is Test {
         TransparentUpgradeableProxy distributorProxy = new TransparentUpgradeableProxy(
             distributorImplementation,
             address(distributorProxyAdmin),
-            abi.encodeWithSelector(RewardsDistributor.initialize.selector, rewardsUpdater, ACTIVATION_DELAY)
+            abi.encodeWithSelector(RewardsDistributor.initialize.selector, rewardsUpdater)
         );
         distributor = RewardsDistributor(address(distributorProxy));
 
         distributor.transferOwnership(owner);
 
         leaves = new bytes32[](2);
-        leaves[0] = keccak256(abi.encodePacked(user1, ROLE_OPERATOR, user1Amount)); // user1's leaf as developer
-        leaves[1] = keccak256(abi.encodePacked(user2, ROLE_DEVELOPER, user2Amount)); // user2's leaf as operator
+        leaves[0] = keccak256(abi.encodePacked(user1, ROLE_OPERATOR, user1Amount)); // user1's leaf as operator
+        leaves[1] = keccak256(abi.encodePacked(user2, ROLE_DEVELOPER, user2Amount)); // user2's leaf as developer
 
         // calculate merkle root
         merkleRoot = keccak256(abi.encodePacked(leaves[0], leaves[1]));
@@ -86,12 +84,12 @@ contract RewardsDistributorTest is Test {
     function test_Initialize() public view {
         assertEq(distributor.owner(), owner);
         assertEq(distributor.rewardsUpdater(), rewardsUpdater);
-        assertEq(distributor.activationDelay(), ACTIVATION_DELAY);
+        assertEq(distributor.distributionRoot(), bytes32(0));
     }
 
     function testFail_InitializeZeroUpdater() public {
         distributor = new RewardsDistributor(address(cToken));
-        distributor.initialize(address(0), ACTIVATION_DELAY);
+        distributor.initialize(address(0));
     }
 
     function test_SetRewardsUpdater() public {
@@ -101,16 +99,9 @@ contract RewardsDistributorTest is Test {
         assertEq(distributor.rewardsUpdater(), newUpdater);
     }
 
-    function test_SetActivationDelay() public {
-        uint32 newDelay = 2 days;
-        vm.prank(owner);
-        distributor.setActivationDelay(newDelay);
-        assertEq(distributor.activationDelay(), newDelay);
-    }
-
     function test_EmergencyWithdraw() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
         uint256 balanceBefore = cToken.balanceOf(owner);
         vm.prank(owner);
@@ -118,41 +109,31 @@ contract RewardsDistributorTest is Test {
         assertEq(cToken.balanceOf(owner) - balanceBefore, totalAmount);
     }
 
-    function test_SubmitRoot() public {
+    function test_UpdateRoot() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
-        RewardsDistributor.DistributionRoot memory root = distributor.getDistributionRoot(0);
-        assertEq(root.root, merkleRoot);
-        assertEq(root.activatedAt, block.timestamp + ACTIVATION_DELAY);
-        assertEq(root.disabled, false);
+        assertEq(distributor.distributionRoot(), merkleRoot);
+        assertEq(cToken.balanceOf(address(distributor)), totalAmount);
     }
 
-    function test_DisableRoot() public {
+    function testFail_UpdateRootWithZeroRoot() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
-
-        vm.prank(rewardsUpdater);
-        distributor.disableRoot(0);
-
-        RewardsDistributor.DistributionRoot memory root = distributor.getDistributionRoot(0);
-        assertTrue(root.disabled);
+        distributor.updateRoot(bytes32(0), totalAmount);
     }
 
     function test_ClaimRewards() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
-        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
-
-        // User1 claims as developer
+        // User1 claims as operator
         vm.prank(user1);
-        distributor.claimRewards(0, ROLE_OPERATOR, user1Amount, proofs[0]);
+        distributor.claimRewards(ROLE_OPERATOR, user1Amount, proofs[0]);
         assertEq(cToken.balanceOf(user1), user1Amount);
 
-        // User2 claims as operator
+        // User2 claims as developer
         vm.prank(user2);
-        distributor.claimRewards(0, ROLE_DEVELOPER, user2Amount, proofs[1]);
+        distributor.claimRewards(ROLE_DEVELOPER, user2Amount, proofs[1]);
         assertEq(cToken.balanceOf(user2), user2Amount);
     }
 
@@ -176,79 +157,100 @@ contract RewardsDistributorTest is Test {
 
         bytes32 multiRoleMerkleRoot = keccak256(abi.encodePacked(multiRoleLeaves[0], multiRoleLeaves[1]));
 
-        // submit the new merkle root
+        // Update with the new merkle root
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(multiRoleMerkleRoot, 500e18);
-
-        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
+        distributor.updateRoot(multiRoleMerkleRoot, 500e18);
 
         // User1 claims as developer
         vm.prank(user1);
-        distributor.claimRewards(0, ROLE_DEVELOPER, 300e18, multiRoleProofs[0]);
-        assertEq(cToken.balanceOf(user1), 300e18);
+        distributor.claimRewards(ROLE_DEVELOPER, amount1, multiRoleProofs[0]);
+        assertEq(cToken.balanceOf(user1), amount1);
 
-        // User1 claims as operator
+        // User1 claims as delegator
         vm.prank(user1);
-        distributor.claimRewards(0, ROLE_DELEGATOR, 200e18, multiRoleProofs[1]);
-        assertEq(cToken.balanceOf(user1), 500e18);
+        distributor.claimRewards(ROLE_DELEGATOR, amount2, multiRoleProofs[1]);
+        assertEq(cToken.balanceOf(user1), amount1 + amount2);
     }
 
     function testFail_ClaimRewardsWithWrongRole() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
-
-        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
         // User1 tries to claim with wrong role
         vm.prank(user1);
         // Should fail as user1 is registered as OPERATOR
-        distributor.claimRewards(0, ROLE_DEVELOPER, user1Amount, proofs[0]);
+        distributor.claimRewards(ROLE_DEVELOPER, user1Amount, proofs[0]);
     }
 
     function testFail_ClaimRewardsWithWrongProof() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
-
-        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
         // User1 try use user2's proof
         vm.prank(user1);
-        distributor.claimRewards(0, ROLE_OPERATOR, user1Amount, proofs[1]);
+        distributor.claimRewards(ROLE_OPERATOR, user1Amount, proofs[1]);
     }
 
     function testFail_ClaimRewardsWithWrongAmount() public {
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
-
-        vm.warp(block.timestamp + ACTIVATION_DELAY + 1);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
         // User1 try use wrong amount
         vm.prank(user1);
-        distributor.claimRewards(0, ROLE_DEVELOPER, user2Amount, proofs[0]);
+        distributor.claimRewards(ROLE_DEVELOPER, user2Amount, proofs[0]);
     }
 
-    function test_GetDistributionRoot() public {
-        vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
-
-        RewardsDistributor.DistributionRoot memory root = distributor.getDistributionRoot(0);
-        assertEq(root.root, merkleRoot);
+    function testFail_ClaimRewardsWithNoRoot() public {
+        vm.prank(user1);
+        distributor.claimRewards(ROLE_OPERATOR, user1Amount, proofs[0]);
     }
 
-    function test_GetRootIndexFromHash() public {
+    function test_ClaimRewardsAccumulation() public {
+        // First distribution
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot, totalAmount);
 
-        uint32 index = distributor.getRootIndexFromHash(merkleRoot);
-        assertEq(index, 0);
-    }
+        // User1 claims initial amount
+        vm.prank(user1);
+        distributor.claimRewards(ROLE_OPERATOR, user1Amount, proofs[0]);
+        assertEq(cToken.balanceOf(user1), user1Amount);
 
-    function test_GetDistributionRootsLength() public {
-        assertEq(distributor.getDistributionRootsLength(), 0);
+        // Create new merkle tree with increased amount for user1
+        uint256 user1NewAmount = user1Amount + 400e18;
+        bytes32[] memory newLeaves = new bytes32[](2);
+        newLeaves[0] = keccak256(abi.encodePacked(user1, ROLE_OPERATOR, user1NewAmount));
+        newLeaves[1] = keccak256(abi.encodePacked(user2, ROLE_DEVELOPER, user2Amount));
 
+        bytes32[][] memory newProofs = new bytes32[][](2);
+        newProofs[0] = new bytes32[](1);
+        newProofs[0][0] = newLeaves[1];
+        newProofs[1] = new bytes32[](1);
+        newProofs[1][0] = newLeaves[0];
+
+        if (uint256(newLeaves[0]) > uint256(newLeaves[1])) {
+            (newLeaves[0], newLeaves[1]) = (newLeaves[1], newLeaves[0]);
+        }
+
+        bytes32 newMerkleRoot = keccak256(abi.encodePacked(newLeaves[0], newLeaves[1]));
+
+        // Submit new distribution with additional rewards
+        cToken.mint(rewardsUpdater, 400e18);
         vm.prank(rewardsUpdater);
-        distributor.submitRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(newMerkleRoot, 400e18);
 
-        assertEq(distributor.getDistributionRootsLength(), 1);
+        // User1 claims additional amount
+        vm.prank(user1);
+        distributor.claimRewards(ROLE_OPERATOR, user1NewAmount, newProofs[0]);
+        assertEq(cToken.balanceOf(user1), user1NewAmount);
+
+        // Try to claim again with same amount (should fail)
+        vm.prank(user1);
+        vm.expectRevert("RewardsDistributor: No rewards to claim");
+        distributor.claimRewards(ROLE_OPERATOR, user1NewAmount, newProofs[0]);
+
+        // Try to claim with lower amount (should fail)
+        vm.prank(user1);
+        vm.expectRevert("RewardsDistributor: Invalid proof");
+        distributor.claimRewards(ROLE_OPERATOR, user1Amount, proofs[0]);
     }
 }
