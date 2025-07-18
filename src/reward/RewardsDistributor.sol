@@ -87,16 +87,13 @@ contract RewardsDistributor is
     //=========================================================================
     /// @notice Updates the merkle root for rewards distribution
     /// @param newRoot New merkle root of the distribution
-    /// @param amount Total amount of tokens to be distributed
-    function updateRoot(bytes32 newRoot, uint256 amount) external onlyRewardsUpdater {
+    function updateRoot(bytes32 newRoot) external onlyRewardsUpdater {
         require(newRoot != bytes32(0), "RewardsDistributor: Invalid root");
 
         bytes32 oldRoot = distributionRoot;
         distributionRoot = newRoot;
 
-        require(cToken.transferFrom(msg.sender, address(this), amount), "RewardsDistributor: Transfer failed");
-
-        emit RootUpdated(oldRoot, newRoot, amount);
+        emit RootUpdated(oldRoot, newRoot);
     }
 
     //=========================================================================

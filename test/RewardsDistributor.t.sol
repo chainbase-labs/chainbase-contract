@@ -76,7 +76,7 @@ contract RewardsDistributorTest is Test {
         require(MerkleProof.verify(proofs[1], merkleRoot, leaves[1]), "User2 proof verification failed");
 
         // mint cToken to rewardsUpdater and approve distributor
-        cToken.mint(rewardsUpdater, totalAmount);
+        cToken.mint(address(this), totalAmount);
         vm.prank(rewardsUpdater);
         cToken.approve(address(distributor), type(uint256).max);
     }
@@ -100,8 +100,9 @@ contract RewardsDistributorTest is Test {
     }
 
     function test_EmergencyWithdraw() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         uint256 balanceBefore = cToken.balanceOf(owner);
         vm.prank(owner);
@@ -110,21 +111,23 @@ contract RewardsDistributorTest is Test {
     }
 
     function test_UpdateRoot() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         assertEq(distributor.distributionRoot(), merkleRoot);
-        assertEq(cToken.balanceOf(address(distributor)), totalAmount);
     }
 
     function testFail_UpdateRootWithZeroRoot() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(bytes32(0), totalAmount);
+        distributor.updateRoot(bytes32(0));
     }
 
     function test_ClaimRewards() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         // User1 claims as operator
         vm.prank(user1);
@@ -158,8 +161,9 @@ contract RewardsDistributorTest is Test {
         bytes32 multiRoleMerkleRoot = keccak256(abi.encodePacked(multiRoleLeaves[0], multiRoleLeaves[1]));
 
         // Update with the new merkle root
+        cToken.transfer(address(distributor), 500e18);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(multiRoleMerkleRoot, 500e18);
+        distributor.updateRoot(multiRoleMerkleRoot);
 
         // User1 claims as developer
         vm.prank(user1);
@@ -173,8 +177,9 @@ contract RewardsDistributorTest is Test {
     }
 
     function testFail_ClaimRewardsWithWrongRole() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         // User1 tries to claim with wrong role
         vm.prank(user1);
@@ -183,8 +188,9 @@ contract RewardsDistributorTest is Test {
     }
 
     function testFail_ClaimRewardsWithWrongProof() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         // User1 try use user2's proof
         vm.prank(user1);
@@ -192,8 +198,9 @@ contract RewardsDistributorTest is Test {
     }
 
     function testFail_ClaimRewardsWithWrongAmount() public {
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         // User1 try use wrong amount
         vm.prank(user1);
@@ -207,8 +214,9 @@ contract RewardsDistributorTest is Test {
 
     function test_ClaimRewardsAccumulation() public {
         // First distribution
+        cToken.transfer(address(distributor), totalAmount);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(merkleRoot, totalAmount);
+        distributor.updateRoot(merkleRoot);
 
         // User1 claims initial amount
         vm.prank(user1);
@@ -234,9 +242,10 @@ contract RewardsDistributorTest is Test {
         bytes32 newMerkleRoot = keccak256(abi.encodePacked(newLeaves[0], newLeaves[1]));
 
         // Submit new distribution with additional rewards
-        cToken.mint(rewardsUpdater, 400e18);
+        cToken.mint(address(this), 400e18);
+        cToken.transfer(address(distributor), 400e18);
         vm.prank(rewardsUpdater);
-        distributor.updateRoot(newMerkleRoot, 400e18);
+        distributor.updateRoot(newMerkleRoot);
 
         // User1 claims additional amount
         vm.prank(user1);

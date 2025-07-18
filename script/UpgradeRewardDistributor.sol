@@ -15,9 +15,9 @@ contract UpgradeRewardDistributor is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // chainbase testnet
-        address proxyAdmin = address(0x00Ea5021c00040D0d01fd574a9dCc5a3063C9F48);
-        address rewardDistributorProxy = address(0x6F9100EdF5DE1E35E775E61F40335721A2Eaf79A);
-        address cTokenAddress = address(0xe30a02dF61b661140938b8e0B910CD81b466A46b);
+        address proxyAdmin = address(0x6a9e75a741277199E27c93d544a32a6650638c85);
+        address rewardDistributorProxy = address(0xe1186578D2fDc5Ed16f25840562cF9F3395c1ddC);
+        address cTokenAddress = address(0xA1f8B99b010c72201d149EFBDC38b88b342E7C18);
         RewardsDistributor newImplementation = new RewardsDistributor(cTokenAddress);
 
         ProxyAdmin(proxyAdmin).upgrade(ITransparentUpgradeableProxy(rewardDistributorProxy), address(newImplementation));
